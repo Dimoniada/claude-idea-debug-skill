@@ -87,6 +87,16 @@ powershell -ExecutionPolicy Bypass -File "...\Debug-And-Capture.ps1" -DetectionW
 
 If the chaser fails with `no IntelliJ test runner detected within Ns`, that means the keystroke didn't actually launch a run (a modal dialog ate it, or no run config is selected, or focus was wrong). Try invoking the run manually in IntelliJ first.
 
+### Test-history finalize grace (`-TestHistoryGraceMs`, default 1500)
+
+After the test-runner JVM exits, the chaser waits this many milliseconds before scanning `testHistory` for the results XML. IntelliJ writes that XML **asynchronously** — for a large **Debug** run (debugger teardown plus a lot of console output) the flush can land *after* the default 1500 ms window, in which case the chaser prints `(no new test results XML ...)` and Claude falls back to parsing the console log instead of the clean `Total / Passed / Failed` table. Small runs finalize well within the default.
+
+If a run that clearly executed tests reports no XML, raise the grace:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "...\Debug-And-Capture.ps1" -TestHistoryGraceMs 5000
+```
+
 ## Usage
 
 In a Claude Code session opened at your project folder:
@@ -136,6 +146,7 @@ IntelliJ does spawn a fresh `java.exe` per test/run with `idea_rt.jar` in its cl
 | `[chaser] no IntelliJ test runner detected within 30s` | Shift+F9 didn't reach IntelliJ (modal dialog, not ready), or no run config selected. Increase with `-DetectionWindowSec`. Long-running tests are *not* a cause — once the JVM starts, the chaser waits with no timeout. |
 | `=== LOG FILE: not found ===` followed by HINT | Run config is missing one or both of "Save console output to file" / `-Dlogging.file.name`. |
 | `[FAIL] foo (?)` with no stderr | Test never actually ran — usually a Spring/JUnit bootstrap failure (e.g. Testcontainer unavailable, Spring context failed). Claude will automatically read the XML file and surface the stdout/stderr inline — look there for the `Caused by:` root cause. |
+| `[chaser] (no new test results XML ...)` after a real test run | A large Debug run finalized its test-history XML after the grace window. IntelliJ writes it asynchronously; big suites under the debugger can flush slower than the default 1500 ms. Raise it via `-TestHistoryGraceMs` (e.g. `5000`). |
 | `[chaser] Could not find IntelliJ IDEA data directory` | Non-standard data directory: IntelliJ 2019 or earlier (legacy path not found), custom `idea.system.path` in `idea.vmoptions`, or JetBrains Toolbox "Override data directory". Pass the path manually via `-TestHistoryDir`. |
 
 ## Contributing

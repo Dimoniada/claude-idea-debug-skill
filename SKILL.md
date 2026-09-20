@@ -64,7 +64,7 @@ The script accepts a `-KeyDebug` parameter in WshShell.SendKeys notation: `+` = 
 5. The parent writes a tiny `.vbs` and runs it via `wscript.exe`, which sends `$KeyDebug` (default `+{F9}`) from the **interactive user session**. The keypress would be silently dropped if sent from the non-interactive PowerShell subprocess.
 6. The watcher polls for either: (a) a new `java.exe` whose command-line contains `idea_rt.jar` AND does NOT match an infrastructure pattern (BuildMain, jps-launcher, kotlin.daemon, etc.), or (b) a new/modified testHistory XML (fallback for sub-second tests where the JVM disappears between polls). Detection times out after `-DetectionWindowSec` (default 30s).
 7. Once the test-runner JVM is detected, the watcher waits for it to exit — **with no timeout** — printing a `[chaser] still running... Ns elapsed` heartbeat every 10 seconds.
-8. After exit (plus a 1.5s grace for IntelliJ to finalize the XML), the watcher reads `debug-capture.log` and parses the latest test-history XML to print pass/fail counts and per-test results.
+8. After exit (plus a grace period for IntelliJ to finalize the XML — `-TestHistoryGraceMs`, default 1500), the watcher reads `debug-capture.log` and parses the latest test-history XML to print pass/fail counts and per-test results.
 9. The watcher minimizes IntelliJ via `ShowWindow(SW_MINIMIZE)`. This is a cross-process call that does NOT require focus-stealing privileges, and the next window in the Z-order (Claude Code) surfaces naturally — without burning the user's Alt+Tab MRU slot.
 
 ## Design notes (do not undo)
@@ -128,6 +128,7 @@ IntelliJ must be open, not minimized to tray, with a recent run config so the De
 | `[chaser] no log file found` (with HINT) | The run config is missing one or both of "Save console output to file" / `-Dlogging.file.name`. Follow the hint. |
 | `[chaser] Could not find IntelliJ IDEA data directory` | The user is on IntelliJ 2019 or earlier (legacy path not found), OR has a custom `idea.system.path` set in `idea.vmoptions`/`idea.properties`, OR uses JetBrains Toolbox with "Override data directory". Ask the user for the path to their `testHistory` folder and pass it as `-TestHistoryDir "<path>"` to both scripts. |
 | `cannot be loaded because running scripts is disabled` | The skill was invoked with `& "...ps1"` instead of `powershell -ExecutionPolicy Bypass -File`. |
+| `[chaser] (no new test results XML ...)` on what was clearly a JUnit run | A large Debug run finalized its test-history XML *after* the grace window closed. IntelliJ writes the XML asynchronously; big suites under the debugger can flush slower than the default 1500 ms. Raise it, e.g. `-TestHistoryGraceMs 5000`. |
 | Empty test results section | Last run wasn't a JUnit test run. Normal for build-only runs. |
 
 ## What NOT to do
@@ -138,3 +139,4 @@ IntelliJ must be open, not minimized to tray, with a recent run config so the De
 - Do not copy the scripts out of the skill into the project folder. They run fine in place.
 - Do not pass a `-LogFile` parameter unless the user explicitly asks for the log to be written somewhere other than the project root — the default (`$PWD\debug-capture.log`) is correct.
 - Do not pass a `-TestHistoryDir` parameter unless the chaser warned it could not find the data directory automatically — the auto-detection covers the standard modern and legacy paths.
+- Do not pass a `-TestHistoryGraceMs` parameter unless a run that clearly executed tests reports `(no new test results XML ...)` — the default 1500 ms is correct for normal runs. Only raise it (e.g. `5000`) for large debug suites whose XML is finalized after the default window.

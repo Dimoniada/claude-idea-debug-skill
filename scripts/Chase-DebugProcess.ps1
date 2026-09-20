@@ -3,6 +3,7 @@ param(
     [int]$DetectionWindowSec   = 30,
     [string]$ReadyFile         = "",
     [string]$TestHistoryDir    = "",   # override auto-detected path
+    [int]$TestHistoryGraceMs   = 1500, # wait after JVM exit before scanning testHistory for the XML
     [switch]$MinimizeIntelliJ
 )
 
@@ -109,7 +110,7 @@ if ($testProcess) {
     }
     $totalSec = [int]((Get-Date) - $start).TotalSeconds
     Write-Host "[chaser] test runner exited after ${totalSec}s"
-    Start-Sleep -Milliseconds 1500  # give IntelliJ time to finalize the XML
+    Start-Sleep -Milliseconds $TestHistoryGraceMs  # give IntelliJ time to finalize the XML (raise for large Debug suites)
 }
 
 # --- Phase 3: find the test-results XML (latest new/modified) ---
