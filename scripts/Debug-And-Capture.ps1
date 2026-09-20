@@ -2,7 +2,8 @@ param(
     [string]$LogFile           = "$PWD\debug-capture.log",
     [string]$KeyDebug          = "+{F9}",   # SendKeys notation: + Shift, % Alt, ^ Ctrl
     [int]$DetectionWindowSec   = 30,
-    [string]$TestHistoryDir    = ""         # override auto-detected testHistory path
+    [string]$TestHistoryDir    = "",        # override auto-detected testHistory path
+    [int]$TestHistoryGraceMs   = 1500       # wait after JVM exit before scanning testHistory (raise for large Debug suites)
 )
 
 . "$PSScriptRoot\WinApi.ps1"
@@ -26,7 +27,7 @@ if (Test-Path $readyFile) { Remove-Item $readyFile -Force }
 
 # Launch chaser. No stdout/stderr redirection — chaser prints to this console live.
 $chaserArgs = "-NonInteractive -ExecutionPolicy Bypass -File `"$PSScriptRoot\Chase-DebugProcess.ps1`" " +
-              "-LogFile `"$LogFile`" -DetectionWindowSec $DetectionWindowSec -ReadyFile `"$readyFile`" -MinimizeIntelliJ" +
+              "-LogFile `"$LogFile`" -DetectionWindowSec $DetectionWindowSec -ReadyFile `"$readyFile`" -TestHistoryGraceMs $TestHistoryGraceMs -MinimizeIntelliJ" +
               $(if ($TestHistoryDir) { " -TestHistoryDir `"$TestHistoryDir`"" } else { "" })
 $chaser = Start-Process powershell -ArgumentList $chaserArgs -NoNewWindow -PassThru
 
